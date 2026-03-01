@@ -1,0 +1,5 @@
+$MaximumFunctionCount = 32768
+Import-Module -name Microsoft.Graph
+Connect-MgGraph -Scopes User.ReadWrite.All
+Get-MgUser -UserId "user@domain.com" | Select-Object Id,UserPrincipalName
+Invoke-MgGraphRequest -Method PATCH -Uri "https://graph.microsoft.com/v1.0/users/77ceXXX" -Body @{onPremisesImmutableId = $null}

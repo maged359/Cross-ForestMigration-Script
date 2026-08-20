@@ -1,0 +1,20 @@
+$Services = Get-Service -Name "*GlobalSecureAccess*" -ErrorAction SilentlyContinue
+
+if (-not $Services) {
+    Write-Output "No Global Secure Access services were found."
+    exit 1
+}
+
+$StoppedServices = $Services | Where-Object { $_.Status -ne "Running" }
+
+if ($StoppedServices) {
+    Write-Output "The following Global Secure Access services are not running:"
+    $StoppedServices | ForEach-Object {
+        Write-Output "$($_.Name) - Status: $($_.Status)"
+    }
+
+    exit 1
+}
+
+Write-Output "All Global Secure Access services are running."
+exit 0

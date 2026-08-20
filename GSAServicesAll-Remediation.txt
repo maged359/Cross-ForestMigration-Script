@@ -1,0 +1,35 @@
+$Services = Get-Service -Name "*GlobalSecureAccess*" -ErrorAction SilentlyContinue
+
+if (-not $Services) {
+    Write-Output "No Global Secure Access services were found."
+    exit 0
+}
+
+foreach ($Service in $Services) {
+
+    if ($Service.Status -ne "Running") {
+
+        Write-Output "Attempting to start: $($Service.Name) - Current status: $($Service.Status)"
+
+        try {
+            Start-Service -Name $Service.Name -ErrorAction Stop
+
+            Start-Sleep -Seconds 5
+
+            $Service.Refresh()
+
+            if ($Service.Status -eq "Running") {
+                Write-Output "Successfully started: $($Service.Name)"
+            }
+            else {
+                Write-Output "Unable to start: $($Service.Name). Current status: $($Service.Status)"
+            }
+        }
+        catch {
+            Write-Output "Failed to start $($Service.Name): $($_.Exception.Message)"
+        }
+    }
+    else {
+        Write-Output "$($Service.Name) is already running."
+    }
+}

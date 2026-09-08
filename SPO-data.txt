@@ -1,0 +1,270 @@
+# ============================================================
+# SHAREPOINT ONLINE - ALL SITE INVENTORY IN ONE CSV
+# Microsoft.Online.SharePoint.PowerShell
+# NO PnP
+# ============================================================
+
+$TenantName = "m365x18449975"
+$AdminUrl = "https://$TenantName-admin.sharepoint.com"
+$OutputPath = "C:\SPOInventory"
+
+# Create output folder
+New-Item -Path $OutputPath -ItemType Directory -Force | Out-Null
+
+# Install module if required
+if (-not (Get-Module -ListAvailable `
+    -Name Microsoft.Online.SharePoint.PowerShell)) {
+
+    Install-Module `
+        Microsoft.Online.SharePoint.PowerShell `
+        -Scope CurrentUser `
+        -Force `
+        -AllowClobber
+}
+
+Import-Module Microsoft.Online.SharePoint.PowerShell
+
+# Connect
+Connect-SPOService -Url $AdminUrl
+
+Write-Host "Getting SharePoint Online sites..." -ForegroundColor Cyan
+
+$Sites = Get-SPOSite -Limit ALL
+
+Write-Host "Found $($Sites.Count) sites." -ForegroundColor Green
+
+# ============================================================
+# CREATE ONE CONSOLIDATED CSV
+# ============================================================
+
+$Results = foreach ($Site in $Sites) {
+
+    Write-Host "Processing: $($Site.Url)" -ForegroundColor Yellow
+
+    try {
+
+        # Storage
+        $StorageGB = [math]::Round(
+            ($Site.StorageUsageCurrent / 1024),
+            2
+        )
+
+        $QuotaGB = [math]::Round(
+            ($Site.StorageMaximumLevel / 1024),
+            2
+        )
+
+        $WarningGB = [math]::Round(
+            ($Site.StorageWarningLevel / 1024),
+            2
+        )
+
+        if ($QuotaGB -gt 0) {
+            $StoragePercent = [math]::Round(
+                ($StorageGB / $QuotaGB) * 100,
+                2
+            )
+        }
+        else {
+            $StoragePercent = 0
+        }
+
+        # Microsoft 365 Group
+        $GroupConnected = $false
+
+        if ($Site.GroupId -and
+            $Site.GroupId -ne [Guid]::Empty) {
+
+            $GroupConnected = $true
+        }
+
+        # Site classification
+        $SiteType = "Other"
+
+        if ($Site.IsTeamsConnected -eq $true) {
+            $SiteType = "Teams Connected"
+        }
+        elseif ($Site.Template -like "*SITEPAGEPUBLISHING*") {
+            $SiteType = "Communication Site"
+        }
+        elseif ($Site.Template -like "GROUP*") {
+            $SiteType = "Microsoft 365 Group Site"
+        }
+        elseif ($Site.Template -like "STS*") {
+            $SiteType = "Classic/Team Site"
+        }
+
+        # Output ONE ROW per site
+        [PSCustomObject]@{
+
+            # -------------------------
+            # Site information
+            # -------------------------
+
+            SiteURL = $Site.Url
+
+            SiteTitle = $Site.Title
+
+            SiteType = $SiteType
+
+            Template = $Site.Template
+
+            Owner = $Site.Owner
+
+            Status = $Site.Status
+
+            LockState = $Site.LockState
+
+            CompatibilityLevel = $Site.CompatibilityLevel
+
+            LastContentModified =
+                $Site.LastContentModifiedDate
+
+            # -------------------------
+            # Storage
+            # -------------------------
+
+            StorageGB = $StorageGB
+
+            StorageQuotaGB = $QuotaGB
+
+            StorageWarningGB = $WarningGB
+
+            StoragePercentUsed = $StoragePercent
+
+            ResourceUsageCurrent =
+                $Site.ResourceUsageCurrent
+
+            ResourceQuota =
+                $Site.ResourceQuota
+
+            # -------------------------
+            # Microsoft 365 Group
+            # -------------------------
+
+            GroupId = $Site.GroupId
+
+            GroupConnected = $GroupConnected
+
+            # -------------------------
+            # Microsoft Teams
+            # -------------------------
+
+            IsTeamsConnected =
+                $Site.IsTeamsConnected
+
+            IsTeamsChannelConnected =
+                $Site.IsTeamsChannelConnected
+
+            # -------------------------
+            # Sharing
+            # -------------------------
+
+            SharingCapability =
+                $Site.SharingCapability
+
+            SharingDomainRestrictionMode =
+                $Site.SharingDomainRestrictionMode
+
+            DisableCompanyWideSharingLinks =
+                $Site.DisableCompanyWideSharingLinks
+
+            # -------------------------
+            # Security / Compliance
+            # -------------------------
+
+            SensitivityLabel =
+                $Site.SensitivityLabel
+
+            ConditionalAccessPolicy =
+                $Site.ConditionalAccessPolicy
+
+            RestrictedAccessControl =
+                $Site.RestrictedAccessControl
+
+            RestrictedAccessControlGroups =
+                $Site.RestrictedAccessControlGroups
+
+            # -------------------------
+            # Download controls
+            # -------------------------
+
+            AllowDownloadingNonWebViewableFiles =
+                $Site.AllowDownloadingNonWebViewableFiles
+
+            # -------------------------
+            # Inventory date
+            # -------------------------
+
+            InventoryDate = Get-Date
+        }
+
+    }
+    catch {
+
+        Write-Warning `
+            "Failed: $($Site.Url) - $($_.Exception.Message)"
+    }
+}
+
+# ============================================================
+# EXPORT EVERYTHING TO ONE CSV
+# ============================================================
+
+$CSVPath = "$OutputPath\SPO-Full-Inventory.csv"
+
+$Results |
+Export-Csv `
+    -Path $CSVPath `
+    -NoTypeInformation `
+    -Encoding UTF8
+
+# ============================================================
+# SUMMARY
+# ============================================================
+
+$TotalSites = $Results.Count
+
+$TotalStorageGB = [math]::Round(
+    ($Results |
+        Measure-Object `
+        -Property StorageGB `
+        -Sum).Sum,
+    2
+)
+
+$TeamsSites = @(
+    $Results |
+    Where-Object {
+        $_.IsTeamsConnected -eq $true
+    }
+).Count
+
+$GroupSites = @(
+    $Results |
+    Where-Object {
+        $_.GroupConnected -eq $true
+    }
+).Count
+
+Write-Host ""
+Write-Host "==========================================" `
+    -ForegroundColor Green
+
+Write-Host "SPO INVENTORY COMPLETED" `
+    -ForegroundColor Green
+
+Write-Host "==========================================" `
+    -ForegroundColor Green
+
+Write-Host ""
+Write-Host "Total Sites       : $TotalSites"
+Write-Host "Total Storage     : $TotalStorageGB GB"
+Write-Host "Teams Sites       : $TeamsSites"
+Write-Host "M365 Group Sites  : $GroupSites"
+Write-Host ""
+Write-Host "CSV File:" `
+    -ForegroundColor Cyan
+
+Write-Host $CSVPath `
+    -ForegroundColor Cyan

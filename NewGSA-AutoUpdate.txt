@@ -1,0 +1,526 @@
+# ============================================================
+# GSA MANUAL DETECTION + REMEDIATION
+# ============================================================
+
+$MinimumVersion = [version]"2.31.125"
+
+$TargetVersion     = '2.31.125'
+$DisplayNameMatch  = 'Global Secure Access Client'
+$DownloadUrl       = 'https://aka.ms/GlobalSecureAccess-windows'
+
+$WorkDir   = "$env:ProgramData\GSA_Update"
+$Installer = Join-Path $WorkDir 'GlobalSecureAccessClient.exe'
+$LogFile   = Join-Path $WorkDir 'GSA_Remediation.log'
+
+
+# ============================================================
+# FUNCTION: GET GSA INSTALLATIONS
+# ============================================================
+
+function Get-GSAInstalls {
+
+    $paths = @(
+        'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*',
+        'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*'
+    )
+
+    Get-ItemProperty -Path $paths -ErrorAction SilentlyContinue |
+        Where-Object {
+            $_.DisplayName -like "*Global Secure Access*"
+        } |
+        Select-Object DisplayName,
+                      DisplayVersion,
+                      PSChildName,
+                      UninstallString,
+                      QuietUninstallString
+}
+
+
+# ============================================================
+# FUNCTION: DETECTION
+# ============================================================
+
+function Test-GSACompliance {
+
+    Write-Host ""
+    Write-Host "============================================"
+    Write-Host "GSA DETECTION"
+    Write-Host "============================================"
+
+    $GSAApps = @(Get-GSAInstalls)
+
+    # GSA not installed
+    if (-not $GSAApps) {
+
+        Write-Host "NON-COMPLIANT: GSA is not installed." -ForegroundColor Red
+
+        return $false
+    }
+
+    foreach ($App in $GSAApps) {
+
+        if ([string]::IsNullOrWhiteSpace($App.DisplayVersion)) {
+
+            Write-Host "NON-COMPLIANT: Unable to determine GSA version." -ForegroundColor Red
+
+            return $false
+        }
+
+        try {
+
+            $InstalledVersion = [version]$App.DisplayVersion
+
+            Write-Host "Detected GSA version: $InstalledVersion"
+            Write-Host "Required minimum:    $MinimumVersion"
+
+        }
+        catch {
+
+            Write-Host "NON-COMPLIANT: Invalid GSA version." -ForegroundColor Red
+
+            return $false
+        }
+
+        # Any version below minimum = non-compliant
+        if ($InstalledVersion -lt $MinimumVersion) {
+
+            Write-Host ""
+            Write-Host "NON-COMPLIANT" -ForegroundColor Red
+            Write-Host "GSA version $InstalledVersion is older than $MinimumVersion."
+
+            return $false
+        }
+    }
+
+    Write-Host ""
+    Write-Host "COMPLIANT" -ForegroundColor Green
+    Write-Host "All detected GSA versions meet the minimum requirement."
+
+    return $true
+}
+
+
+# ============================================================
+# FUNCTION: LOGGING
+# ============================================================
+
+function Write-Log {
+
+    param(
+        [string]$Message
+    )
+
+    $line = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')  $Message"
+
+    Add-Content `
+        -Path $LogFile `
+        -Value $line `
+        -ErrorAction SilentlyContinue
+
+    Write-Host $Message
+}
+
+
+# ============================================================
+# FUNCTION: REMEDIATION
+# ============================================================
+
+function Invoke-GSARemediation {
+
+    Write-Host ""
+    Write-Host "============================================"
+    Write-Host "GSA REMEDIATION"
+    Write-Host "============================================"
+
+    try {
+
+        # --------------------------------------------------------
+        # Create working directory
+        # --------------------------------------------------------
+
+        if (-not (Test-Path $WorkDir)) {
+
+            New-Item `
+                -Path $WorkDir `
+                -ItemType Directory `
+                -Force |
+                Out-Null
+        }
+
+        [Net.ServicePointManager]::SecurityProtocol =
+            [Net.SecurityProtocolType]::Tls12
+
+
+        # --------------------------------------------------------
+        # STEP 1 - STOP GSA SERVICES
+        # --------------------------------------------------------
+
+        Write-Log "STEP 1 - Stopping GSA services."
+
+        $services = @(
+            'GlobalSecureAccessClientManagerService',
+            'GlobalSecureAccessEngineService',
+            'GlobalSecureAccessForwardingProfileService',
+            'GlobalSecureAccessTunnelingService'
+        )
+
+        foreach ($svc in $services) {
+
+            $s = Get-Service `
+                -Name $svc `
+                -ErrorAction SilentlyContinue
+
+            if ($s) {
+
+                Write-Log "Stopping service: $svc"
+
+                Stop-Service `
+                    -Name $svc `
+                    -Force `
+                    -ErrorAction SilentlyContinue
+            }
+        }
+
+
+        # --------------------------------------------------------
+        # STEP 2 - UNINSTALL ALL EXISTING GSA VERSIONS
+        # --------------------------------------------------------
+
+        Write-Log "STEP 2 - Uninstalling all existing GSA versions."
+
+        $existing = @(Get-GSAInstalls)
+
+        foreach ($app in $existing) {
+
+            Write-Log "Found GSA version: $($app.DisplayVersion)"
+
+            $cmd = $app.QuietUninstallString
+
+            if ([string]::IsNullOrWhiteSpace($cmd)) {
+
+                $cmd = $app.UninstallString
+            }
+
+            if ([string]::IsNullOrWhiteSpace($cmd)) {
+
+                Write-Log "WARNING: No uninstall command found."
+
+                continue
+            }
+
+            if ($cmd -match '"([^"]+\.exe)"?\s*(.*)') {
+
+                $exe  = $Matches[1]
+                $args = $Matches[2]
+
+                if ($exe -match 'GlobalSecureAccessClient\.exe') {
+
+                    $args = '/uninstall /quiet /norestart'
+                }
+                elseif ($args -notmatch '/quiet') {
+
+                    $args = "$args /quiet /norestart"
+                }
+
+                Write-Log "Running: $exe $args"
+
+                $p = Start-Process `
+                    -FilePath $exe `
+                    -ArgumentList $args `
+                    -Wait `
+                    -PassThru `
+                    -ErrorAction SilentlyContinue
+
+                Write-Log "Uninstall exit code: $($p.ExitCode)"
+            }
+            else {
+
+                Write-Log "WARNING: Unable to parse uninstall command."
+            }
+        }
+
+
+        Start-Sleep -Seconds 5
+
+
+        # --------------------------------------------------------
+        # STEP 3 - DOWNLOAD LATEST GSA
+        # --------------------------------------------------------
+
+        Write-Log "STEP 3 - Downloading latest GSA client."
+
+        if (Test-Path $Installer) {
+
+            Remove-Item `
+                $Installer `
+                -Force `
+                -ErrorAction SilentlyContinue
+        }
+
+        Write-Log "Download URL: $DownloadUrl"
+
+        Invoke-WebRequest `
+            -Uri $DownloadUrl `
+            -OutFile $Installer `
+            -UseBasicParsing `
+            -ErrorAction Stop
+
+
+        if (-not (Test-Path $Installer)) {
+
+            Write-Log "ERROR: Installer was not downloaded."
+
+            return $false
+        }
+
+
+        Write-Log "GSA installer downloaded successfully."
+
+
+        # --------------------------------------------------------
+        # STEP 4 - INSTALL GSA
+        # --------------------------------------------------------
+
+        Write-Log "STEP 4 - Installing latest GSA client."
+
+        $proc = Start-Process `
+            -FilePath $Installer `
+            -ArgumentList '/install /quiet /norestart' `
+            -Wait `
+            -PassThru
+
+        Write-Log "Install exit code: $($proc.ExitCode)"
+
+
+        if (($proc.ExitCode -ne 0) -and
+            ($proc.ExitCode -ne 3010)) {
+
+            Write-Log "ERROR: GSA installation failed."
+
+            return $false
+        }
+
+
+        # --------------------------------------------------------
+        # STEP 5 - WAIT 15 SECONDS
+        # --------------------------------------------------------
+
+        Write-Log "STEP 5 - Installation completed. Waiting 15 seconds before checking GSA services."
+
+        Start-Sleep -Seconds 15
+
+
+        # --------------------------------------------------------
+        # STEP 6 - CHECK AND START GSA SERVICES
+        # --------------------------------------------------------
+
+        Write-Log "STEP 6 - Checking GSA services."
+
+        $GSAServices = @(
+            'GlobalSecureAccessClientManagerService',
+            'GlobalSecureAccessEngineService',
+            'GlobalSecureAccessForwardingProfileService',
+            'GlobalSecureAccessTunnelingService'
+        )
+
+        foreach ($ServiceName in $GSAServices) {
+
+            $Service = Get-Service `
+                -Name $ServiceName `
+                -ErrorAction SilentlyContinue
+
+            if (-not $Service) {
+
+                Write-Log "WARNING: GSA service not found: $ServiceName"
+
+                continue
+            }
+
+            if ($Service.Status -eq 'Running') {
+
+                Write-Log "$ServiceName is already running."
+            }
+            else {
+
+                Write-Log "Service $ServiceName is not running. Current status: $($Service.Status). Attempting to start."
+
+                try {
+
+                    Start-Service `
+                        -Name $ServiceName `
+                        -ErrorAction Stop
+
+                    Start-Sleep -Seconds 5
+
+                    $Service.Refresh()
+
+                    if ($Service.Status -eq 'Running') {
+
+                        Write-Log "SUCCESS: $ServiceName started successfully."
+                    }
+                    else {
+
+                        Write-Log "FAILURE: Unable to start $ServiceName. Current status: $($Service.Status)."
+                    }
+                }
+                catch {
+
+                    Write-Log "ERROR: Failed to start $ServiceName. Error: $($_.Exception.Message)"
+                }
+            }
+        }
+
+
+        # --------------------------------------------------------
+        # STEP 7 - VERIFY
+        # --------------------------------------------------------
+
+        Write-Log "STEP 7 - Verifying GSA installation."
+
+        $after = @(Get-GSAInstalls)
+
+
+        if ($after.Count -eq 0) {
+
+            Write-Log "FAILURE: GSA was not detected after installation."
+
+            return $false
+        }
+
+
+        foreach ($app in $after) {
+
+            Write-Log "Detected after remediation: $($app.DisplayVersion)"
+        }
+
+
+        # Get highest version
+        $versions = @()
+
+        foreach ($app in $after) {
+
+            try {
+
+                $versions += [version]$app.DisplayVersion
+
+            }
+            catch {
+
+                Write-Log "WARNING: Unable to parse version $($app.DisplayVersion)"
+            }
+        }
+
+
+        if ($versions.Count -eq 0) {
+
+            Write-Log "FAILURE: No valid GSA version detected."
+
+            return $false
+        }
+
+
+        $HighestVersion = $versions |
+            Sort-Object -Descending |
+            Select-Object -First 1
+
+
+        Write-Log "Highest installed GSA version: $HighestVersion"
+
+
+        if ($HighestVersion -ge [version]$TargetVersion) {
+
+            Write-Log "SUCCESS: GSA version $HighestVersion is installed."
+
+            return $true
+        }
+        else {
+
+            Write-Log "FAILURE: GSA version is below $TargetVersion."
+
+            return $false
+        }
+
+    }
+    catch {
+
+        Write-Log "REMEDIATION ERROR: $($_.Exception.Message)"
+
+        return $false
+    }
+}
+
+
+# ============================================================
+# MAIN
+# ============================================================
+
+Write-Host ""
+Write-Host "===================================================="
+Write-Host " Microsoft Global Secure Access"
+Write-Host " Manual Detection + Remediation"
+Write-Host "===================================================="
+Write-Host ""
+
+
+# Run detection
+$Compliant = Test-GSACompliance
+
+
+# ============================================================
+# COMPLIANT
+# ============================================================
+
+if ($Compliant) {
+
+    Write-Host ""
+    Write-Host "RESULT: DEVICE IS COMPLIANT" -ForegroundColor Green
+    Write-Host "No remediation is required."
+    Write-Host ""
+
+    exit 0
+}
+
+
+# ============================================================
+# NON-COMPLIANT → REMEDIATE
+# ============================================================
+
+Write-Host ""
+Write-Host "RESULT: DEVICE IS NON-COMPLIANT" -ForegroundColor Red
+Write-Host "Starting remediation..."
+Write-Host ""
+
+$RemediationResult = Invoke-GSARemediation
+
+
+# ============================================================
+# FINAL DETECTION
+# ============================================================
+
+Write-Host ""
+Write-Host "============================================"
+Write-Host "FINAL VERIFICATION"
+Write-Host "============================================"
+
+$FinalCompliance = Test-GSACompliance
+
+
+if ($FinalCompliance) {
+
+    Write-Host ""
+    Write-Host "SUCCESS: Device is now COMPLIANT." -ForegroundColor Green
+    Write-Host ""
+
+    exit 0
+}
+else {
+
+    Write-Host ""
+    Write-Host "FAILURE: Device is still NON-COMPLIANT." -ForegroundColor Red
+    Write-Host ""
+    Write-Host "Review log:"
+    Write-Host $LogFile
+
+    exit 1
+}
+```

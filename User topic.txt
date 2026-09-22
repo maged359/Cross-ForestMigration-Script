@@ -1,0 +1,162 @@
+kind: AdaptiveDialog
+beginDialog:
+  kind: OnRecognizedIntent
+  id: main
+  intent:
+    displayName: Onboarding Main Menu
+    triggerQueries:
+      - main menu
+      - open main menu
+      - lets begin
+      - start onboarding
+      - onboarding
+      - what can you do
+  actions:
+    - kind: Question
+      id: askMenuChoice
+      alwaysPrompt: true
+      variable: Topic.Choice
+      prompt: "Here's what you can do next. Choose what you'd like to do:"
+      entity:
+        kind: EmbeddedEntity
+        definition:
+          kind: ClosedListEntity
+          items:
+            - id: PersonalDetails
+              displayName: Personal Details
+            - id: BankDetails
+              displayName: Bank Details
+            - id: TrainingCourses
+              displayName: Training Courses
+            - id: RequestDevices
+              displayName: Request Devices
+            - id: LeavePolicies
+              displayName: Leave Policies
+
+    - kind: SetVariable
+      id: setChoiceText
+      variable: Topic.ChoiceText
+      value: =Text(Topic.Choice)
+
+    - kind: ConditionGroup
+      id: routeMenu
+      conditions:
+        - id: condPersonal
+          condition: =Topic.ChoiceText = "Personal Details"
+          actions:
+            - kind: Question
+              id: askFullName
+              alwaysPrompt: true
+              variable: Topic.FullName
+              prompt: "What is your full name?"
+              entity: StringPrebuiltEntity
+            - kind: Question
+              id: askEmail
+              alwaysPrompt: true
+              variable: Topic.PersonalEmail
+              prompt: "What is your personal email address?"
+              entity: EmailPrebuiltEntity
+            - kind: Question
+              id: askNationality
+              alwaysPrompt: true
+              variable: Topic.Nationality
+              prompt: "What is your nationality?"
+              entity: StringPrebuiltEntity
+            - kind: Question
+              id: askAddress
+              alwaysPrompt: true
+              variable: Topic.Address
+              prompt: "What is your home address?"
+              entity: StringPrebuiltEntity
+            - kind: SendActivity
+              id: personalDone
+              activity: "Your personal details have been recorded successfully. HR will validate the information and contact you if anything else is needed. Say main menu to go back."
+
+        - id: condBank
+          condition: =Topic.ChoiceText = "Bank Details"
+          actions:
+            - kind: Question
+              id: askHolder
+              alwaysPrompt: true
+              variable: Topic.AccountHolder
+              prompt: "What is the account holder name?"
+              entity: StringPrebuiltEntity
+            - kind: Question
+              id: askAccount
+              alwaysPrompt: true
+              variable: Topic.AccountNumber
+              prompt: "What is your account number or IBAN?"
+              entity: StringPrebuiltEntity
+            - kind: Question
+              id: askBankName
+              alwaysPrompt: true
+              variable: Topic.BankName
+              prompt: "What is your bank name?"
+              entity: StringPrebuiltEntity
+            - kind: Question
+              id: askBranch
+              alwaysPrompt: true
+              variable: Topic.BranchName
+              prompt: "What is your branch name?"
+              entity: StringPrebuiltEntity
+            - kind: Question
+              id: askSwift
+              alwaysPrompt: true
+              variable: Topic.SwiftCode
+              prompt: "What is the SWIFT code?"
+              entity: StringPrebuiltEntity
+            - kind: SendActivity
+              id: bankDone
+              activity: "Bank details submitted successfully. Payroll has received your account information and will confirm before the first pay cycle. Say main menu to go back."
+
+        - id: condTraining
+          condition: =Topic.ChoiceText = "Training Courses"
+          actions:
+            - kind: SendActivity
+              id: trainingMsg
+              activity: "Training Courses to complete in your first 30 days: Security Awareness and Acceptable Use, Data Protection and Confidentiality, Code of Conduct and Ethics, Microsoft 365 Productivity Essentials, and your role specific onboarding track. You will receive assignment emails from the Learning portal. Say main menu to go back."
+
+        - id: condDevices
+          condition: =Topic.ChoiceText = "Request Devices"
+          actions:
+            - kind: Question
+              id: askDeviceType
+              alwaysPrompt: true
+              variable: Topic.DeviceType
+              prompt: "Which device do you need?"
+              entity:
+                kind: EmbeddedEntity
+                definition:
+                  kind: ClosedListEntity
+                  items:
+                    - id: Laptop
+                      displayName: Laptop
+                    - id: Desktop
+                      displayName: Desktop
+                    - id: Monitor
+                      displayName: Monitor
+                    - id: MobilePhone
+                      displayName: Mobile Phone
+                    - id: Accessories
+                      displayName: Headset or Accessories
+            - kind: Question
+              id: askJustification
+              alwaysPrompt: true
+              variable: Topic.Justification
+              prompt: "Please describe why you need this device."
+              entity: StringPrebuiltEntity
+            - kind: SendActivity
+              id: deviceDone
+              activity: "Your device request has been initialized. IT will review it based on availability and eligibility, and you will receive a confirmation once approved. Say main menu to go back."
+
+        - id: condLeave
+          condition: =Topic.ChoiceText = "Leave Policies"
+          actions:
+            - kind: SendActivity
+              id: leaveMsg
+              activity: "Leave Policies overview. Annual leave is accrued monthly and requested through the HR portal with manager approval. For sick leave, notify your manager the same day, and a medical certificate is required beyond the threshold in the HR handbook. Public holidays follow the official national calendar published by HR. Unpaid and special leave is submitted as an exception request approved by HR. Say main menu to go back."
+
+      elseActions:
+        - kind: SendActivity
+          id: unknownChoice
+          activity: "I didn't catch that. Say main menu and I'll show you the options again."

@@ -1,0 +1,239 @@
+kind: AdaptiveDialog
+beginDialog:
+  kind: OnRecognizedIntent
+  id: main
+  intent:
+    displayName: IT Provisioning Request
+    triggerQueries:
+      - new request
+      - create a group
+      - request a group
+      - new security group
+      - new teams channel
+      - new sharepoint site
+      - new distribution list
+      - provisioning request
+  actions:
+    - kind: Question
+      id: askServiceType
+      alwaysPrompt: true
+      variable: Topic.ServiceType
+      prompt: "What would you like to request?"
+      entity:
+        kind: EmbeddedEntity
+        definition:
+          kind: ClosedListEntity
+          items:
+            - id: SecurityGroup
+              displayName: Security Group
+            - id: TeamsChannel
+              displayName: Teams Channel
+            - id: SharePointSite
+              displayName: SharePoint Site
+            - id: DistributionList
+              displayName: Distribution List
+
+    - kind: SetVariable
+      id: setServiceText
+      variable: Topic.ServiceText
+      value: =Text(Topic.ServiceType)
+
+    - kind: ConditionGroup
+      id: routeService
+      conditions:
+        - id: condSecurityGroup
+          condition: =Topic.ServiceText = "Security Group"
+          actions:
+            - kind: Question
+              id: askSgName
+              alwaysPrompt: true
+              variable: Topic.GroupName
+              prompt: "What is the security group name?"
+              entity: StringPrebuiltEntity
+            - kind: Question
+              id: askSgOwner
+              alwaysPrompt: true
+              variable: Topic.GroupOwner
+              prompt: "Who is the group owner? Enter their email address."
+              entity: EmailPrebuiltEntity
+            - kind: Question
+              id: askSgMembers
+              alwaysPrompt: true
+              variable: Topic.GroupMembers
+              prompt: "List the members to add, separated by commas."
+              entity: StringPrebuiltEntity
+            - kind: Question
+              id: askSgJustification
+              alwaysPrompt: true
+              variable: Topic.Justification
+              prompt: "What is the business justification for this group?"
+              entity: StringPrebuiltEntity
+            - kind: SendActivity
+              id: sgDone
+              activity: "Your security group request has been submitted for approval. IT will notify you once the group is created. Say main menu to go back."
+
+        - id: condTeamsChannel
+          condition: =Topic.ServiceText = "Teams Channel"
+          actions:
+            - kind: Question
+              id: askTeamName
+              alwaysPrompt: true
+              variable: Topic.ParentTeam
+              prompt: "Which team should the channel be created in?"
+              entity: StringPrebuiltEntity
+            - kind: Question
+              id: askChannelName
+              alwaysPrompt: true
+              variable: Topic.ChannelName
+              prompt: "What is the channel name?"
+              entity: StringPrebuiltEntity
+            - kind: Question
+              id: askChannelOwner
+              alwaysPrompt: true
+              variable: Topic.ChannelOwner
+              prompt: "Who is the channel owner? Enter their email address."
+              entity: EmailPrebuiltEntity
+            - kind: Question
+              id: askChannelMembers
+              alwaysPrompt: true
+              variable: Topic.ChannelMembers
+              prompt: "List the members to add, separated by commas."
+              entity: StringPrebuiltEntity
+            - kind: Question
+              id: askChannelPrivacy
+              alwaysPrompt: true
+              variable: Topic.ChannelPrivacy
+              prompt: "Should the channel be standard or private?"
+              entity:
+                kind: EmbeddedEntity
+                definition:
+                  kind: ClosedListEntity
+                  items:
+                    - id: Standard
+                      displayName: Standard
+                    - id: Private
+                      displayName: Private
+            - kind: Question
+              id: askChannelJustification
+              alwaysPrompt: true
+              variable: Topic.Justification
+              prompt: "What is the business justification for this channel?"
+              entity: StringPrebuiltEntity
+            - kind: SendActivity
+              id: channelDone
+              activity: "Your Teams channel request has been submitted for approval. IT will notify you once the channel is created. Say main menu to go back."
+
+        - id: condSharePointSite
+          condition: =Topic.ServiceText = "SharePoint Site"
+          actions:
+            - kind: Question
+              id: askSiteName
+              alwaysPrompt: true
+              variable: Topic.SiteName
+              prompt: "What is the site name?"
+              entity: StringPrebuiltEntity
+            - kind: Question
+              id: askSiteOwner
+              alwaysPrompt: true
+              variable: Topic.SiteOwner
+              prompt: "Who is the site owner? Enter their email address."
+              entity: EmailPrebuiltEntity
+            - kind: Question
+              id: askSiteMembers
+              alwaysPrompt: true
+              variable: Topic.SiteMembers
+              prompt: "List the members to add, separated by commas."
+              entity: StringPrebuiltEntity
+            - kind: Question
+              id: askSiteType
+              alwaysPrompt: true
+              variable: Topic.SiteType
+              prompt: "Which site type do you need?"
+              entity:
+                kind: EmbeddedEntity
+                definition:
+                  kind: ClosedListEntity
+                  items:
+                    - id: TeamSite
+                      displayName: Team Site
+                    - id: CommunicationSite
+                      displayName: Communication Site
+            - kind: Question
+              id: askSiteJustification
+              alwaysPrompt: true
+              variable: Topic.Justification
+              prompt: "What is the business justification for this site?"
+              entity: StringPrebuiltEntity
+            - kind: SendActivity
+              id: siteDone
+              activity: "Your SharePoint site request has been submitted for approval. IT will notify you once the site is provisioned. Say main menu to go back."
+
+        - id: condDistributionList
+          condition: =Topic.ServiceText = "Distribution List"
+          actions:
+            - kind: Question
+              id: askDlName
+              alwaysPrompt: true
+              variable: Topic.DlName
+              prompt: "What is the distribution list name?"
+              entity: StringPrebuiltEntity
+            - kind: Question
+              id: askDlAlias
+              alwaysPrompt: true
+              variable: Topic.DlAlias
+              prompt: "What email alias should the list use?"
+              entity: StringPrebuiltEntity
+            - kind: Question
+              id: askDlOwner
+              alwaysPrompt: true
+              variable: Topic.DlOwner
+              prompt: "Who is the list owner? Enter their email address."
+              entity: EmailPrebuiltEntity
+            - kind: Question
+              id: askDlMembers
+              alwaysPrompt: true
+              variable: Topic.DlMembers
+              prompt: "List the members to add, separated by commas."
+              entity: StringPrebuiltEntity
+            - kind: Question
+              id: askDlJustification
+              alwaysPrompt: true
+              variable: Topic.Justification
+              prompt: "What is the business justification for this list?"
+              entity: StringPrebuiltEntity
+            - kind: SendActivity
+              id: dlDone
+              activity: "Your distribution list request has been submitted for approval. IT will notify you once the list is created. Say main menu to go back."
+
+      elseActions:
+        - kind: SendActivity
+          id: unknownService
+          activity: "I didn't catch that. Say new request and I'll show you the options again."
+
+
+kind: AdaptiveDialog
+beginDialog:
+  kind: OnConversationStart
+  id: main
+  actions:
+    - kind: SendActivity
+      id: welcomeCard
+      activity:
+        attachments:
+          - kind: AdaptiveCardTemplate
+            cardContent: |-
+              {
+                "type": "AdaptiveCard",
+                "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+                "version": "1.5",
+                "body": [
+                  { "type": "TextBlock", "text": "Welcome onboard !", "weight": "Bolder", "size": "Large", "wrap": true },
+                  { "type": "TextBlock", "text": "It's great to have you with us. I'm your Onboarding Copilot, ready to walk you through everything you need — profile setup, bank details, meetings, and device requests.", "wrap": true },
+                  { "type": "TextBlock", "text": "I can also raise IT requests for security groups, Teams channels, SharePoint sites and distribution lists.", "wrap": true },
+                  { "type": "TextBlock", "text": "What would you like to do?", "wrap": true, "spacing": "Medium" }
+                ],
+                "actions": [
+                  { "type": "Action.Submit", "title": "Lets Begin", "data": "main menu" },
+                  { "type": "Action.Submit", "title": "Raise an IT Request", "data": "new request" }
+                ]
+              }

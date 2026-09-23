@@ -1,0 +1,265 @@
+kind: AdaptiveDialog
+modelDescription: Collect Microsoft Entra ID user information, review the request, confirm it, and prepare the values for the Microsoft Entra ID Create user connector.
+beginDialog:
+  kind: OnRecognizedIntent
+  id: main
+  intent:
+    triggerQueries:
+      - create Entra user
+      - create a new Entra user
+      - create new user
+      - add new Entra user
+      - provision new user
+      - onboard new employee
+      - create Microsoft 365 user
+      - create user account
+
+  actions:
+    - kind: SendActivity
+      id: sendWelcomeMessage
+      activity: Welcome to the Microsoft Entra ID user provisioning assistant. Complete the form below, then review the account details before the user is created.
+
+    - kind: AdaptiveCardPrompt
+      id: collectEntraUserDetails
+      card: |-
+        {
+          "type": "AdaptiveCard",
+          "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+          "version": "1.5",
+          "body": [
+            {
+              "type": "TextBlock",
+              "text": "MICROSOFT ENTRA ID",
+              "size": "Small",
+              "weight": "Bolder",
+              "color": "Accent",
+              "wrap": true
+            },
+            {
+              "type": "TextBlock",
+              "text": "Create a new user",
+              "size": "ExtraLarge",
+              "weight": "Bolder",
+              "wrap": true
+            },
+            {
+              "type": "TextBlock",
+              "text": "Enter the account, identity, and organization details.",
+              "size": "Medium",
+              "isSubtle": true,
+              "wrap": true
+            },
+            {
+              "type": "TextBlock",
+              "text": "Account settings",
+              "size": "Large",
+              "weight": "Bolder",
+              "color": "Accent",
+              "separator": true,
+              "spacing": "Large",
+              "wrap": true
+            },
+            {
+              "type": "Input.Toggle",
+              "id": "accountEnabled",
+              "title": "Enable the account immediately",
+              "value": "true",
+              "valueOn": "true",
+              "valueOff": "false",
+              "wrap": true
+            },
+            {
+              "type": "TextBlock",
+              "text": "Identity information",
+              "size": "Large",
+              "weight": "Bolder",
+              "color": "Accent",
+              "separator": true,
+              "spacing": "Large",
+              "wrap": true
+            },
+            {
+              "type": "Input.Text",
+              "id": "displayName",
+              "label": "Display name",
+              "placeholder": "Example: Ahmed Mohammed",
+              "isRequired": true,
+              "errorMessage": "Display name is required."
+            },
+            {
+              "type": "Input.Text",
+              "id": "givenName",
+              "label": "Given name",
+              "placeholder": "Example: Ahmed",
+              "isRequired": true,
+              "errorMessage": "Given name is required."
+            },
+            {
+              "type": "Input.Text",
+              "id": "surname",
+              "label": "Surname",
+              "placeholder": "Example: Mohammed",
+              "isRequired": true,
+              "errorMessage": "Surname is required."
+            },
+            {
+              "type": "TextBlock",
+              "text": "Sign-in information",
+              "size": "Large",
+              "weight": "Bolder",
+              "color": "Accent",
+              "separator": true,
+              "spacing": "Large",
+              "wrap": true
+            },
+            {
+              "type": "Input.Text",
+              "id": "userPrincipalName",
+              "label": "User principal name",
+              "placeholder": "Example: ahmed.mohammed@yourdomain.com",
+              "style": "Email",
+              "isRequired": true,
+              "errorMessage": "User principal name is required."
+            },
+            {
+              "type": "Input.Text",
+              "id": "mailNickname",
+              "label": "Mail nickname",
+              "placeholder": "Example: ahmed.mohammed",
+              "isRequired": true,
+              "errorMessage": "Mail nickname is required."
+            },
+            {
+              "type": "Input.Text",
+              "id": "password",
+              "label": "Temporary password",
+              "placeholder": "Enter a strong temporary password",
+              "style": "Password",
+              "isRequired": true,
+              "errorMessage": "Temporary password is required."
+            },
+            {
+              "type": "TextBlock",
+              "text": "Organization information",
+              "size": "Large",
+              "weight": "Bolder",
+              "color": "Accent",
+              "separator": true,
+              "spacing": "Large",
+              "wrap": true
+            },
+            {
+              "type": "Input.Text",
+              "id": "businessPhone",
+              "label": "Business phone",
+              "placeholder": "Example: +966 11 000 0000",
+              "style": "Tel"
+            },
+            {
+              "type": "Input.Text",
+              "id": "department",
+              "label": "Department",
+              "placeholder": "Example: Information Technology"
+            },
+            {
+              "type": "Input.Text",
+              "id": "jobTitle",
+              "label": "Job title",
+              "placeholder": "Example: Microsoft 365 Administrator"
+            },
+            {
+              "type": "TextBlock",
+              "text": "Verify the sign-in name carefully. The temporary password is never shown in the confirmation message.",
+              "size": "Small",
+              "color": "Attention",
+              "wrap": true,
+              "separator": true,
+              "spacing": "Large"
+            }
+          ],
+          "actions": [
+            {
+              "type": "Action.Submit",
+              "title": "Submit user details",
+              "style": "positive",
+              "data": {
+                "actionSubmitId": "entra_user_create_submit"
+              }
+            }
+          ]
+        }
+      output:
+        binding:
+          accountEnabled: Topic.AccountEnabled
+          businessPhone: Topic.BusinessPhone
+          department: Topic.Department
+          displayName: Topic.DisplayName
+          givenName: Topic.GivenName
+          jobTitle: Topic.JobTitle
+          mailNickname: Topic.MailNickname
+          password: Topic.Password
+          surname: Topic.Surname
+          userPrincipalName: Topic.UserPrincipalName
+
+      outputType:
+        properties:
+          accountEnabled: String
+          businessPhone: String
+          department: String
+          displayName: String
+          givenName: String
+          jobTitle: String
+          mailNickname: String
+          password: String
+          surname: String
+          userPrincipalName: String
+
+    - kind: SendActivity
+      id: showUserReview
+      activity: |-
+        ="Please review the new Microsoft Entra ID user request:" &
+        "<br><br><b>Account enabled:</b> " & If(Topic.AccountEnabled = "true", "Yes", "No") &
+        "<br><b>Display name:</b> " & Topic.DisplayName &
+        "<br><b>Given name:</b> " & Topic.GivenName &
+        "<br><b>Surname:</b> " & Topic.Surname &
+        "<br><b>User principal name:</b> " & Topic.UserPrincipalName &
+        "<br><b>Mail nickname:</b> " & Topic.MailNickname &
+        "<br><b>Business phone:</b> " & If(IsBlank(Topic.BusinessPhone), "Not provided", Topic.BusinessPhone) &
+        "<br><b>Department:</b> " & If(IsBlank(Topic.Department), "Not provided", Topic.Department) &
+        "<br><b>Job title:</b> " & If(IsBlank(Topic.JobTitle), "Not provided", Topic.JobTitle) &
+        "<br><br><b>The temporary password is hidden for security.</b>"
+
+    - kind: Question
+      id: askForConfirmation
+      variable: Topic.Confirmation
+      prompt: Do you want to create this Microsoft Entra ID user?
+      entity:
+        kind: EmbeddedEntity
+        definition:
+          kind: ClosedListEntity
+          items:
+            - id: CreateUser
+              displayName: Create user
+
+            - id: CancelRequest
+              displayName: Cancel request
+
+    - kind: ConditionGroup
+      id: checkConfirmation
+      conditions:
+        - id: createUserSelected
+          condition: =Text(Topic.Confirmation) = "Create user"
+          actions:
+            - kind: SendActivity
+              id: readyForConnector
+              activity: The details are confirmed. The Microsoft Entra ID Create user connector will now run.
+
+        - id: cancelSelected
+          condition: =Text(Topic.Confirmation) = "Cancel request"
+          actions:
+            - kind: SendActivity
+              id: cancellationMessage
+              activity: The user creation request was cancelled. No account was created.
+
+            - kind: EndDialog
+              id: endCancelledRequest

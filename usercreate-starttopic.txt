@@ -1,0 +1,73 @@
+kind: AdaptiveDialog
+beginDialog:
+  kind: OnConversationStart
+  id: main
+  actions:
+    - kind: AdaptiveCardPrompt
+      id: showWelcomeCard
+      card: |-
+        {
+          "type": "AdaptiveCard",
+          "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+          "version": "1.5",
+          "body": [
+            {
+              "type": "TextBlock",
+              "text": "MICROSOFT ENTRA ID",
+              "size": "Small",
+              "weight": "Bolder",
+              "color": "Accent",
+              "wrap": true
+            },
+            {
+              "type": "TextBlock",
+              "text": "New user creation request",
+              "size": "ExtraLarge",
+              "weight": "Bolder",
+              "wrap": true
+            },
+            {
+              "type": "TextBlock",
+              "text": "This assistant provisions a new user account in Microsoft Entra ID.",
+              "size": "Medium",
+              "isSubtle": true,
+              "wrap": true
+            },
+            {
+              "type": "TextBlock",
+              "text": "What you will provide",
+              "size": "Large",
+              "weight": "Bolder",
+              "color": "Accent",
+              "separator": true,
+              "spacing": "Large",
+              "wrap": true
+            },
+            {
+              "type": "TextBlock",
+              "text": "- Account settings, including whether the account is enabled at creation\n- Identity details such as display name, given name, and surname\n- Sign-in information, including the user principal name and a temporary password\n- Organization details such as department, job title, and business phone",
+              "wrap": true
+            }
+          ],
+          "actions": [
+            {
+              "type": "Action.Submit",
+              "title": "Begin",
+              "style": "positive",
+              "data": {
+                "actionSubmitId": "entra_user_request_begin"
+              }
+            }
+          ]
+        }
+      output:
+        binding:
+          actionSubmitId: Global.WelcomeAction
+
+      outputType:
+        properties:
+          actionSubmitId: String
+
+    - kind: BeginDialog
+      id: eFUYKG
+      dialog: cr41f_NewEntraUserCreation.topic.EntraTopic
